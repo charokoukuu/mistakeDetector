@@ -5,15 +5,15 @@ import { useDropzone } from 'react-dropzone';
 import './App.css';
 import { Grid } from '@mui/material';
 const cv = (window as any).cv;
+type Load = "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
+type Status = "select1" | "select2" | "edit" | "loading" | "complete";
+let imgA: any, imgB: any;
 function App() {
 
 
-  type Load = "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
-  type Status = "select1" | "select2" | "edit" | "loading" | "complete";
   const [load, setLoad] = useState<Load>("差分抽出");
   const [status, setStatus] = useState<Status>("select1");
 
-  let imgA: any, imgB: any;
 
   const buttonClick = () => {
     const result = new cv.Mat();
@@ -95,11 +95,11 @@ function App() {
       margin: "0 auto",
     }}>
       <Grid container alignItems="center" justifyContent="center" spacing={3}>
-        {status === "select1" && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center" }}>2枚の画像をそれぞれアップロードしてください</h2></Grid>}
+        {(status === "select1" || status === "select2") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center" }}>2枚の画像をそれぞれアップロードしてください</h2></Grid>}
         {(status === "edit") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center" }}>詳細設定</h2></Grid>}
         <Grid item xs={2}></Grid>
         <Grid item xs={4}>
-          {(status === "select1") && <UploadFile setFile={(file) => {
+          {<UploadFile setFile={(file) => {
             if (file && file[0]) {
               const img = new Image()
               img.onload = () => {
@@ -109,12 +109,12 @@ function App() {
               }
               img.src = URL.createObjectURL(file[0])
             }
-          }} />
+          }} status={status} id={"canvasOutput"} />
           }
         </Grid>
         <Grid item xs={4}>
 
-          {(status === "select1" || status === "select2") && <UploadFile setFile={(file) => {
+          {<UploadFile setFile={(file) => {
             if (file && file[0]) {
               const img = new Image()
               img.onload = () => {
@@ -124,27 +124,15 @@ function App() {
               }
               img.src = URL.createObjectURL(file[0])
             }
-          }} />
+          }} status={status} id={"canvasOutput2"} />
           }
         </Grid>
         <Grid item xs={2}></Grid>
 
       </Grid>
 
-      <div >
 
-        <canvas style={{
-          width: "30vw",
-          height: "30vw",
-          boxShadow: "inset 0px 3px 6px #00000029, 0px 3px 6px #00000029",
-          position: "relative",
-          marginTop: "3vw",
-          borderRadius: "1vw"
-        }} id="canvasOutput"></canvas>
-      </div>
-      <canvas id="canvasOutput2"></canvas>
       <canvas id="canvasOutput3"></canvas>
-      <div>canvasOutput</div>
 
       <Button onClick={buttonClick}>Click</Button>
     </div>
@@ -153,6 +141,8 @@ function App() {
 
 interface Upload {
   setFile: (file: File[]) => void;
+  status: Status;
+  id: string;
 }
 const UploadFile = (props: Upload) => {
   const style = {
@@ -164,6 +154,9 @@ const UploadFile = (props: Upload) => {
     props.setFile(acceptedFiles);
   }, []);
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({ onDrop });
+  // useEffect(() => {
+  //   // cv.imshow('canvasOutput', imgA);
+  // }, []);
   return (
     <div>
       <div {...getRootProps()} style={{
@@ -171,7 +164,7 @@ const UploadFile = (props: Upload) => {
         height: "30vw",
         boxShadow: "inset 0px 3px 6px #00000029, 0px 3px 6px #00000029",
         position: "relative",
-        marginTop: "3vw",
+        marginTop: "1vw",
         borderRadius: "1vw"
       }}>
         <input {...getInputProps()} />
@@ -210,6 +203,14 @@ const UploadFile = (props: Upload) => {
                 ファイルをここに
                 <br />
                 <b style={{ color: "#5BC0C4" }}>ドラッグ&ドロップ</b>してください</p></div>
+              <canvas style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                top: 0,
+                left: 0,
+                borderRadius: "1vw"
+              }} id={props.id} ></canvas>
             </div>
         }
       </div>
