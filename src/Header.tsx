@@ -21,7 +21,7 @@ export default function Header() {
                     >
                     </IconButton>
                     <div className='japanese_B' >
-                        DIFFERENCE CHECKER
+                        MISTAKE DETECTOR
                     </div>
                 </Toolbar>
             </AppBar>

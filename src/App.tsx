@@ -16,6 +16,7 @@ function App() {
 
 
   const buttonClick = () => {
+    setStatus("complete");
     const result = new cv.Mat();
     const grayA = new cv.Mat();
     const grayB = new cv.Mat();
@@ -95,8 +96,8 @@ function App() {
       margin: "0 auto",
     }}>
       <Grid container alignItems="center" justifyContent="center" spacing={3}>
-        {(status === "select1" || status === "select2") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center" }}>2枚の画像をそれぞれアップロードしてください</h2></Grid>}
-        {(status === "edit") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center" }}>詳細設定</h2></Grid>}
+        {(status === "select1" || status === "select2") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>2枚の画像をそれぞれアップロードしてください</h2></Grid>}
+        {(status === "edit") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>詳細設定</h2></Grid>}
         <Grid item xs={2}></Grid>
         <Grid item xs={4}>
           {<UploadFile setFile={(file) => {
@@ -132,9 +133,16 @@ function App() {
       </Grid>
 
 
-      <canvas id="canvasOutput3"></canvas>
+      {
+        status === "complete" && <canvas id="canvasOutput3"></canvas>
+      }
 
-      <Button onClick={buttonClick}>Click</Button>
+      <Button fullWidth style={{
+        padding: "1vw 13vw",
+        fontSize: "1.8vw",
+        marginTop: "3vw",
+        backgroundColor: "#3BABE6",
+      }} onClick={buttonClick} variant="contained"><b>判定する</b></Button>
     </div>
   );
 }
@@ -216,6 +224,14 @@ const UploadFile = (props: Upload) => {
       </div>
 
     </div >
+  )
+}
+
+const EditMenu = () => {
+  return (
+    <div>
+
+    </div>
   )
 }
 
