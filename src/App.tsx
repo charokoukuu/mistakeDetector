@@ -1,10 +1,12 @@
-import { Button } from '@mui/material';
+import { Box, Button, Fab } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import './App.css';
 import { Grid } from '@mui/material';
 import { SketchPicker } from 'react-color';
+import Dialog from '@mui/material/Dialog';
+import Slider from '@mui/material/Slider';
 const cv = (window as any).cv;
 type Load = "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
 type Status = "select1" | "select2" | "edit" | "loading" | "complete";
@@ -16,6 +18,11 @@ function App() {
   const [status, setStatus] = useState<Status>("select1");
   const [imgAFile, setImgAFile] = useState<File>();
   const [imgBFile, setImgBFille] = useState<File>();
+
+  let noise = 2;
+  let judgeColor = [255, 0, 0];
+  let judgeRange = 35;
+  let baseImg: "imgA" | "imgB" = "imgA";
 
   const buttonClick = () => {
     setStatus("complete");
@@ -59,7 +66,7 @@ function App() {
     cv.threshold(result, result, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
     setLoad("ノイズ除去");
 
-    let kernel = cv.Mat.ones(2, 2, cv.CV_8U);
+    let kernel = cv.Mat.ones(noise, noise, cv.CV_8U);
     let anchor = new cv.Point(-1, -1);
     cv.morphologyEx(result, result, cv.MORPH_OPEN, kernel, anchor, 1,
       cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
@@ -72,21 +79,32 @@ function App() {
       y: 0
     });
     const addWeightedMat = new cv.Mat();
-    const convert = new cv.Mat();
-    cv.cvtColor(imgA, convert, cv.COLOR_RGBA2RGB);
-    const baseImage = convert.clone();
+    const convertA = new cv.Mat();
+    const convertB = new cv.Mat();
+    cv.cvtColor(imgA, convertA, cv.COLOR_RGBA2RGB);
+    cv.cvtColor(imgB, convertB, cv.COLOR_RGBA2RGB);
+    const baseImageA = convertA.clone();
+    const baseImageB = convertB.clone();
     // cv.convertScaleAbs(baseImage, baseImage, 0.7, 0);
+    let isJudge = false;
     for (let i = 0; i < contours.size(); i++) {
       const cnt = contours.get(i);
       const rect = cv.boundingRect(cnt);
-      if (rect.width > 1 && rect.height > 1) {
+      if (rect.width > 50 - judgeRange && rect.height > 50 - judgeRange) {
+        isJudge = true;
         console.log(rect.x + "," + rect.y + "," + rect.width + "," + rect.height);
-        cv.rectangle(convert, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(0, 0, 255), -1, cv.LINE_8, 0);
-        cv.addWeighted(baseImage, 0.3, convert, 0.7, 2.2, addWeightedMat);
+
+        baseImg === "imgA" && cv.rectangle(convertA, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(judgeColor[0], judgeColor[1], judgeColor[2]), -1, cv.LINE_8, 0);
+        baseImg === "imgA" && cv.addWeighted(baseImageA, 0.3, convertA, 0.7, 2.2, addWeightedMat);
+
+        baseImg === "imgB" && cv.rectangle(convertB, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(judgeColor[0], judgeColor[1], judgeColor[2]), -1, cv.LINE_8, 0);
+        baseImg === "imgB" && cv.addWeighted(baseImageB, 0.3, convertB, 0.7, 2.2, addWeightedMat);
       }
     }
     setLoad("完了");
-    cv.imshow('canvasOutput3', addWeightedMat);
+    cv.imshow('canvasOutput3', result);
+    cv.imshow('canvasOutput4', addWeightedMat);
+    if (isJudge !== true) alert("検知されませんでした")
   }
   // imgA !== undefined && setStatus("select2");
   // imgB !== undefined && setStatus("edit");
@@ -95,6 +113,7 @@ function App() {
     imgAFile !== undefined && setStatus("select2");
     imgBFile !== undefined && setStatus("edit");
   }, [imgAFile, imgBFile]);
+
   return (
     <div style={{
       backgroundColor: '#FFFFFF',
@@ -140,17 +159,33 @@ function App() {
           }
         </Grid>
         <Grid item xs={2}></Grid>
+        <Grid item xs={12}></Grid>
+        <Grid item xs={6}>
 
-
-        {
-          (status === "edit" || status === "loading" || status === "complete") && <canvas id="canvasOutput3" style={{
-            width: "50vw", margin: "0 auto", marginTop: "5vh"
+          <canvas id="canvasOutput3" style={{
+            width: (status === "complete") ? "45vw" : "0", margin: "0 auto", marginTop: "5vh", marginLeft: "2.5vw",
           }}></canvas>
-        }
-        {/* <SketchPicker /> */}
+        </Grid>
+        <Grid item xs={6}>
+          <canvas id="canvasOutput4" style={{
+            width: (status === "complete") ? "45vw" : "0", margin: "0 auto", marginTop: "5vh", textAlign: "center" as "center"
+          }}></canvas>
+        </Grid>
       </Grid>
-      {status === "edit" && <EditMenu onClick={buttonClick} />}
-      {status === "complete" && <Complete imgDownload={() => { }} posDownload={() => { }} prevMove={() => { setStatus("edit") }} topMove={() => { window.location.reload() }} />}
+      {status === "edit" && <EditMenu onClick={(noiseValue: number, rgb: number[], judgeValue: number, synth: "imgA" | "imgB") => {
+        noise = noiseValue;
+        judgeColor = rgb;
+        judgeRange = judgeValue;
+        baseImg = synth;
+        buttonClick();
+      }} />}
+      {status === "complete" && <Complete imgDownload={() => {
+        let canvas = document.getElementById("canvasOutput4") as HTMLCanvasElement;
+        let link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "result.png";
+        link.click();
+      }} posDownload={() => { }} prevMove={() => { setStatus("edit") }} topMove={() => { window.location.reload() }} />}
     </div>
   );
 }
@@ -161,17 +196,12 @@ interface Upload {
   id: string;
 }
 const UploadFile = (props: Upload) => {
-  const style = {
-    width: "30vw",
-    height: "30vw",
-    boxShadow: "inset 0px 3px 6px #00000029, 0px 3px 6px #00000029",
-  };
-  const onDrop = useCallback((acceptedFiles: any) => {
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
     props.setFile(acceptedFiles);
   }, []);
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({ onDrop });
   useEffect(() => {
-    // console.log(isDragActive);
   }, [isDragActive]);
   return (
     <div>
@@ -237,19 +267,154 @@ const UploadFile = (props: Upload) => {
   )
 }
 
-interface EditMenu {
-  onClick: () => void;
+interface EditMenuProps {
+  onClick: (noiseValue: number, rgb: number[], judgeValue: number, synth: "imgA" | "imgB") => void;
 }
-const EditMenu = (props: EditMenu) => {
+const EditMenu = (props: EditMenuProps) => {
+  const [open, setOpen] = React.useState(false);
+  const handleClickOpen = () => {
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+  };
+  interface RGB {
+    r: number;
+    g: number;
+    b: number;
+  }
+  interface Color {
+    hex: string;
+    rgb: RGB;
+  }
+  const [state, setState] = useState({ background: '#FF0000' });
+  const [synthImg, setSynthImg] = useState<"imgA" | "imgB">("imgA");
+  const [noiseValue, setNoiseValue] = useState<number>(2);
+  const [judgeValue, setJudgeValue] = useState<number>(35);
+  const [rgb, setRgb] = useState<number[]>([255, 0, 0]);
+  const handleChangeComplete = (color: Color) => {
+    setState({ background: color.hex });
+    setRgb([color.rgb.r, color.rgb.g, color.rgb.b])
+  };
+  function noise(value: number) {
+    return `${value}`;
+  }
+  function judgeArea(value: number) {
+    return `${value}`;
+  }
+  const selectPurpose = (value: "imgA" | "imgB") => {
+    setSynthImg(value);
+
+  }
+
+  const defaultButton = {
+    backgroundColor: "#E6E6E6",
+    boxShadow: "none",
+    width: "16vw",
+    height: "11vh",
+    borderRadius: "10px",
+
+  }
+  const plessButton = {
+    backgroundColor: "#65FFA062",
+    boxShadow: "inset 0px 1px 6px #00000029",
+    width: "16vw",
+    height: "11vh",
+    borderRadius: "10px",
+    margin: "0 auto",
+
+
+
+
+  }
   return (
-    <div>
+    <div style={{
+      marginTop: "8vh",
+    }}>
+      <Grid container alignItems="center" justifyContent="center" spacing={0}>
+        <Grid item xs={7.5}>
+          <div className='japanese_L' style={{ textAlign: "center" as "center" }}>ノイズ除去感度</div>
+          <Box sx={{ width: 300, margin: "0 auto" }}>
+            <Slider
+              aria-label="noise"
+              defaultValue={2}
+              getAriaValueText={noise}
+              valueLabelDisplay="auto"
+              step={1}
+              marks
+              min={0}
+              max={5}
+              onChange={(event: Event, value: number | number[]) => { setNoiseValue(value as number) }}
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={4.5}>
+          <div className='japanese_L' style={{}}>判定結果の色</div>
+          <Fab onClick={handleClickOpen} style={{ backgroundColor: state.background, margin: "0 auto", marginLeft: "2.2vw" }}>
+          </Fab>
+        </Grid>
+        <Grid item xs={12}>
+          <div className='japanese_L' style={{ textAlign: "center" as "center" }}>検知範囲</div>
+          <Box sx={{ width: 300, margin: "0 auto" }}>
+            <Slider
+              aria-label="noise"
+              defaultValue={35}
+              getAriaValueText={judgeArea}
+              valueLabelDisplay="auto"
+              step={1}
+              marks
+              min={0}
+              max={50}
+              onChange={(event: Event, value: number | number[]) => { setJudgeValue(value as number) }}
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12}>
+          <div className='japanese_L' style={{ textAlign: "center" as "center", marginTop: "5vh", marginBottom: "2vh" }}>合成元画像</div>
+        </Grid>
+        <Grid item xs={2} >
+          <Button
+            variant="contained"
+            onClick={() => { selectPurpose("imgA") }}
+            style={(synthImg === "imgA") ? plessButton : defaultButton}
+
+          >
+            <div className="japanese_L" style={{ textAlign: "center" as "center", color: "#707070", fontSize: "3vw" }}>画像1</div>
+          </Button>
+        </Grid>
+
+        <Grid item xs={2} >
+          <Button
+            variant="contained"
+            onClick={() => { selectPurpose("imgB") }}
+            style={(synthImg === "imgB") ? plessButton : defaultButton}
+          >
+            <div className="japanese_L" style={{ textAlign: "center" as "center", color: "#707070", fontSize: "3vw" }}>画像2</div>
+          </Button>
+        </Grid>
+      </Grid>
+
+      <Dialog
+        open={open}
+        onClose={handleClose}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+
+        <SketchPicker
+          color={state.background}
+          onChangeComplete={handleChangeComplete}
+
+        />
+      </Dialog>
       <Button fullWidth style={{
         padding: "1vw 13vw",
         fontSize: "1.8vw",
         marginTop: "3vw",
         backgroundColor: "#3BABE6",
-      }} onClick={props.onClick} variant="contained"><b>判定する</b></Button>
-    </div>
+      }} onClick={() => { props.onClick(noiseValue, rgb, judgeValue, synthImg) }} variant="contained"><b>判定する</b></Button>
+    </div >
   )
 }
 
@@ -269,7 +434,6 @@ const Complete = (props: CompleteProps) => {
             padding: "1vw 13vw",
             fontSize: "1.8vw",
             marginTop: "3vw",
-            backgroundColor: "#3BABE6",
           }} onClick={props.imgDownload} variant="contained"><b>ダウンロード</b></Button>
         </Grid>
         <Grid item xs={6}>
@@ -277,7 +441,7 @@ const Complete = (props: CompleteProps) => {
             padding: "1vw 13vw",
             fontSize: "1.8vw",
             marginTop: "3vw",
-            backgroundColor: "#3BABE6",
+            backgroundColor: "#E6903B",
           }} onClick={props.posDownload} variant="contained"><b>座標書き出し</b></Button>
         </Grid>
       </Grid>
@@ -291,8 +455,8 @@ const Complete = (props: CompleteProps) => {
         padding: "1vw 13vw",
         fontSize: "1.8vw",
         marginTop: "3vw",
-        backgroundColor: "#3BABE6",
-      }} onClick={props.topMove} variant="contained"><b>最初に戻る</b></Button>
+        backgroundColor: "#797979",
+      }} onClick={props.topMove} variant="contained"><b>トップへ戻る</b></Button>
     </div>
   )
 }
