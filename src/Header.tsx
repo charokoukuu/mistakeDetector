@@ -10,7 +10,9 @@ const Offset = styled('div')(({ theme }) => theme.mixins.toolbar);
 export default function Header() {
     return (
         <React.Fragment>
-            <AppBar position="static" color="default">
+            <AppBar position="static" color="default" onClick={() => {
+                window.location.href = "/";
+            }}>
                 <Toolbar>
                     <IconButton
                         size="large"

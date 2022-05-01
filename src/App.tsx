@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import './App.css';
 import { Grid } from '@mui/material';
+import { SketchPicker } from 'react-color';
 const cv = (window as any).cv;
 type Load = "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
 type Status = "select1" | "select2" | "edit" | "loading" | "complete";
@@ -13,7 +14,8 @@ function App() {
 
   const [load, setLoad] = useState<Load>("差分抽出");
   const [status, setStatus] = useState<Status>("select1");
-
+  const [imgAFile, setImgAFile] = useState<File>();
+  const [imgBFile, setImgBFille] = useState<File>();
 
   const buttonClick = () => {
     setStatus("complete");
@@ -86,7 +88,13 @@ function App() {
     setLoad("完了");
     cv.imshow('canvasOutput3', addWeightedMat);
   }
-
+  // imgA !== undefined && setStatus("select2");
+  // imgB !== undefined && setStatus("edit");
+  // console.log(imgA !== undefined);
+  useEffect(() => {
+    imgAFile !== undefined && setStatus("select2");
+    imgBFile !== undefined && setStatus("edit");
+  }, [imgAFile, imgBFile]);
   return (
     <div style={{
       backgroundColor: '#FFFFFF',
@@ -94,20 +102,23 @@ function App() {
       boxShadow: " 0px 3px 6px #00000029",
       width: "98vw",
       margin: "0 auto",
+      paddingBottom: status !== "edit" ? "10vh" : "0",
     }}>
       <Grid container alignItems="center" justifyContent="center" spacing={3}>
-        {(status === "select1" || status === "select2") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>2枚の画像をそれぞれアップロードしてください</h2></Grid>}
+        {(status === "select1") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>2枚の画像をそれぞれアップロードしてください (0/2)</h2></Grid>}
+        {(status === "select2") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>2枚の画像をそれぞれアップロードしてください (1/2)</h2></Grid>}
         {(status === "edit") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>詳細設定</h2></Grid>}
+        {(status === "complete") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>判定結果</h2></Grid>}
         <Grid item xs={2}></Grid>
         <Grid item xs={4}>
           {<UploadFile setFile={(file) => {
             if (file && file[0]) {
               const img = new Image()
               img.onload = () => {
-                setStatus("select2");
                 imgA = cv.imread(img)
                 cv.imshow('canvasOutput', imgA)
               }
+              setImgAFile(file[0])
               img.src = URL.createObjectURL(file[0])
             }
           }} status={status} id={"canvasOutput"} />
@@ -119,10 +130,10 @@ function App() {
             if (file && file[0]) {
               const img = new Image()
               img.onload = () => {
-                setStatus("edit");
                 imgB = cv.imread(img)
                 cv.imshow('canvasOutput2', imgB)
               }
+              setImgBFille(file[0])
               img.src = URL.createObjectURL(file[0])
             }
           }} status={status} id={"canvasOutput2"} />
@@ -130,19 +141,16 @@ function App() {
         </Grid>
         <Grid item xs={2}></Grid>
 
+
+        {
+          (status === "edit" || status === "loading" || status === "complete") && <canvas id="canvasOutput3" style={{
+            width: "50vw", margin: "0 auto", marginTop: "5vh"
+          }}></canvas>
+        }
+        {/* <SketchPicker /> */}
       </Grid>
-
-
-      {
-        status === "complete" && <canvas id="canvasOutput3"></canvas>
-      }
-
-      <Button fullWidth style={{
-        padding: "1vw 13vw",
-        fontSize: "1.8vw",
-        marginTop: "3vw",
-        backgroundColor: "#3BABE6",
-      }} onClick={buttonClick} variant="contained"><b>判定する</b></Button>
+      {status === "edit" && <EditMenu onClick={buttonClick} />}
+      {status === "complete" && <Complete imgDownload={() => { }} posDownload={() => { }} prevMove={() => { setStatus("edit") }} topMove={() => { window.location.reload() }} />}
     </div>
   );
 }
@@ -162,9 +170,9 @@ const UploadFile = (props: Upload) => {
     props.setFile(acceptedFiles);
   }, []);
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({ onDrop });
-  // useEffect(() => {
-  //   // cv.imshow('canvasOutput', imgA);
-  // }, []);
+  useEffect(() => {
+    // console.log(isDragActive);
+  }, [isDragActive]);
   return (
     <div>
       <div {...getRootProps()} style={{
@@ -189,6 +197,8 @@ const UploadFile = (props: Upload) => {
 
             }} >
               <div><p className="japanese_L" style={{ textAlign: "center" as "center" }}>アップロード！</p></div> </div> :
+
+
             <div style={{
               position: "absolute",
               width: "100%",
@@ -227,12 +237,65 @@ const UploadFile = (props: Upload) => {
   )
 }
 
-const EditMenu = () => {
+interface EditMenu {
+  onClick: () => void;
+}
+const EditMenu = (props: EditMenu) => {
   return (
     <div>
-
+      <Button fullWidth style={{
+        padding: "1vw 13vw",
+        fontSize: "1.8vw",
+        marginTop: "3vw",
+        backgroundColor: "#3BABE6",
+      }} onClick={props.onClick} variant="contained"><b>判定する</b></Button>
     </div>
   )
 }
+
+interface CompleteProps {
+  imgDownload: () => void;
+  posDownload: () => void;
+  prevMove: () => void;
+  topMove: () => void;
+}
+
+const Complete = (props: CompleteProps) => {
+  return (
+    <div>
+      <Grid container alignItems="center" justifyContent="center" spacing={3}>
+        <Grid item xs={6}>
+          <Button fullWidth style={{
+            padding: "1vw 13vw",
+            fontSize: "1.8vw",
+            marginTop: "3vw",
+            backgroundColor: "#3BABE6",
+          }} onClick={props.imgDownload} variant="contained"><b>ダウンロード</b></Button>
+        </Grid>
+        <Grid item xs={6}>
+          <Button fullWidth style={{
+            padding: "1vw 13vw",
+            fontSize: "1.8vw",
+            marginTop: "3vw",
+            backgroundColor: "#3BABE6",
+          }} onClick={props.posDownload} variant="contained"><b>座標書き出し</b></Button>
+        </Grid>
+      </Grid>
+      <Button fullWidth style={{
+        padding: "1vw 13vw",
+        fontSize: "1.8vw",
+        marginTop: "3vw",
+        backgroundColor: "#3BABE6",
+      }} onClick={props.prevMove} variant="contained"><b>詳細設定に戻る</b></Button>
+      <Button fullWidth style={{
+        padding: "1vw 13vw",
+        fontSize: "1.8vw",
+        marginTop: "3vw",
+        backgroundColor: "#3BABE6",
+      }} onClick={props.topMove} variant="contained"><b>最初に戻る</b></Button>
+    </div>
+  )
+}
+
 
 export default App;
