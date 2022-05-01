@@ -8,107 +8,146 @@ import { SketchPicker } from 'react-color';
 import Dialog from '@mui/material/Dialog';
 import Slider from '@mui/material/Slider';
 const cv = (window as any).cv;
-type Load = "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
+type Load = "特徴点マッピング" | "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
 type Status = "select1" | "select2" | "edit" | "loading" | "complete";
 let imgA: any, imgB: any;
+
+interface PosData {
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+}
+
 function App() {
-
-
-  const [load, setLoad] = useState<Load>("差分抽出");
+  const [load, setLoad] = useState<Load>("特徴点マッピング");
   const [status, setStatus] = useState<Status>("select1");
   const [imgAFile, setImgAFile] = useState<File>();
   const [imgBFile, setImgBFille] = useState<File>();
+  let posDataValue: Array<PosData> = [];
+  const [posData, setPosData] = useState<Array<PosData>[]>([]);
 
   let noise = 2;
   let judgeColor = [255, 0, 0];
-  let judgeRange = 35;
+  let judgeRange = 45;
   let baseImg: "imgA" | "imgB" = "imgA";
 
   const buttonClick = () => {
-    setStatus("complete");
-    const result = new cv.Mat();
-    const grayA = new cv.Mat();
-    const grayB = new cv.Mat();
-    cv.cvtColor(imgA, grayA, cv.COLOR_BGR2RGB);
-    cv.cvtColor(imgB, grayB, cv.COLOR_BGR2RGB);
+    try {
+      setStatus("complete");
+      const result = new cv.Mat();
+      const grayA = new cv.Mat();
+      const grayB = new cv.Mat();
 
+      let srcgray = new cv.Mat();
+      let templgray = new cv.Mat();
+      cv.cvtColor(imgA, srcgray, cv.COLOR_RGBA2GRAY);
+      cv.cvtColor(imgB, templgray, cv.COLOR_RGBA2GRAY);
+      var akaze = new cv.AKAZE();
 
-    // hA, wA, cA = imgA.shape[: 3]
-    // hB, wB, cA = imgB.shape[: 3]
-
-    // const akaze = cv.AKAZE_create()
-    // const kpA = new cv.MatVector();
-    // const kpB = new cv.MatVector();
-    // const desA = new cv.MatVector();
-    // const desB = new cv.MatVector();
-
-    // akaze.detectAndCompute(imgA, null, kpA, desA)
-    // akaze.detectAndCompute(imgB, null, kpB, desB)
-
-    // bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck = True)
-    // const bf = cv.BFMatcher()
-    // cv.BFMatcher(cv.NORM_HAMMING, true).match(desA, desB, bf)
-    // // matches = bf.match(desA, desB)
-    // const matches = bf.match(desA, desB)
-    // // matches = sorted(matches, key = lambda x: x.distance)
-    // matches.sort((a: any, b: any) => a.distance - b.distance);
-    // const good = matches.slice(0, Math.trunc(matches.length * 0.15))
-    // // good = matches[: int(len(matches) * 0.15)]
-    // const src_pts=kpA
-    // src_pts = np.float32([kpA[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    // dst_pts = np.float32([kpB[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-    // M, mask = cv.findHomography(dst_pts, src_pts, cv.RANSAC, 5.0)
-    // imgB_transform = cv.warpPerspective(imgB, M, (wA, hA))
-
-    cv.absdiff(grayA, grayB, result);
-    cv.cvtColor(result, result, cv.COLOR_BGR2GRAY);
-    setLoad("二値化");
-    cv.threshold(result, result, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-    setLoad("ノイズ除去");
-
-    let kernel = cv.Mat.ones(noise, noise, cv.CV_8U);
-    let anchor = new cv.Point(-1, -1);
-    cv.morphologyEx(result, result, cv.MORPH_OPEN, kernel, anchor, 1,
-      cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
-
-    const contours = new cv.MatVector();
-    const hierarchy = new cv.Mat();
-    setLoad("輪郭抽出");
-    cv.findContours(result, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE, {
-      x: 0,
-      y: 0
-    });
-    const addWeightedMat = new cv.Mat();
-    const convertA = new cv.Mat();
-    const convertB = new cv.Mat();
-    cv.cvtColor(imgA, convertA, cv.COLOR_RGBA2RGB);
-    cv.cvtColor(imgB, convertB, cv.COLOR_RGBA2RGB);
-    const baseImageA = convertA.clone();
-    const baseImageB = convertB.clone();
-    // cv.convertScaleAbs(baseImage, baseImage, 0.7, 0);
-    let isJudge = false;
-    for (let i = 0; i < contours.size(); i++) {
-      const cnt = contours.get(i);
-      const rect = cv.boundingRect(cnt);
-      if (rect.width > 50 - judgeRange && rect.height > 50 - judgeRange) {
-        isJudge = true;
-        console.log(rect.x + "," + rect.y + "," + rect.width + "," + rect.height);
-
-        baseImg === "imgA" && cv.rectangle(convertA, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(judgeColor[0], judgeColor[1], judgeColor[2]), -1, cv.LINE_8, 0);
-        baseImg === "imgA" && cv.addWeighted(baseImageA, 0.3, convertA, 0.7, 2.2, addWeightedMat);
-
-        baseImg === "imgB" && cv.rectangle(convertB, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(judgeColor[0], judgeColor[1], judgeColor[2]), -1, cv.LINE_8, 0);
-        baseImg === "imgB" && cv.addWeighted(baseImageB, 0.3, convertB, 0.7, 2.2, addWeightedMat);
+      var templkp = new cv.KeyPointVector();
+      var templdas = new cv.Mat();
+      let templmask = new cv.Mat();
+      akaze.detectAndCompute(templgray, templmask, templkp, templdas);
+      let templview = new cv.Mat();
+      cv.drawKeypoints(templgray, templkp, templview);
+      var srckp = new cv.KeyPointVector();
+      var srcdas = new cv.Mat();
+      let srcmask = new cv.Mat();
+      akaze.detectAndCompute(srcgray, srcmask, srckp, srcdas);
+      let srcview = new cv.Mat();
+      cv.drawKeypoints(srcgray, srckp, srcview);
+      var bf = new cv.BFMatcher();
+      var matches = new cv.DMatchVectorVector();
+      bf.knnMatch(templdas, srcdas, matches, 2);
+      var arr = [];
+      var good_matches = new cv.DMatchVector();
+      for (let i = 0; i < matches.size(); ++i) {
+        let match = matches.get(i);
+        let dMatch1 = match.get(0);
+        let dMatch2 = match.get(1);
+        if (dMatch1.distance <= dMatch2.distance * 0.8) {
+          good_matches.push_back(dMatch1);
+        }
       }
+      console.log("good_matches : " + good_matches.size());
+      var img_matches = new cv.Mat();
+      let transformedIm = new cv.Mat();
+      cv.drawMatches(templgray, templkp, srcgray, srckp, good_matches, img_matches);
+      if (good_matches.size() > 10) {
+        let srcPoints = [];
+        let dstPoints = [];
+        for (let k = 0; k < good_matches.size(); ++k) {
+          srcPoints.push(templkp.get(good_matches.get(k).queryIdx).pt.x);
+          srcPoints.push(templkp.get(good_matches.get(k).queryIdx).pt.y);
+          dstPoints.push(srckp.get(good_matches.get(k).trainIdx).pt.x);
+          dstPoints.push(srckp.get(good_matches.get(k).trainIdx).pt.y);
+        }
+        let srcPointsMatArr = cv.matFromArray(srcPoints.length / 2, 1, cv.CV_32FC2, srcPoints);
+        let dstPointsMatArr = cv.matFromArray(dstPoints.length / 2, 1, cv.CV_32FC2, dstPoints);
+        const homo = cv.findHomography(srcPointsMatArr, dstPointsMatArr, cv.RANSAC, 5.0);
+        cv.warpPerspective(imgB, transformedIm, homo, new cv.Size(imgB.cols, imgB.rows));
+      }
+      setLoad("差分抽出");
+      cv.cvtColor(imgA, grayA, cv.COLOR_BGR2RGB);
+      cv.cvtColor(transformedIm, grayB, cv.COLOR_BGR2RGB);
+
+      cv.absdiff(grayA, grayB, result);
+      cv.cvtColor(result, result, cv.COLOR_BGR2GRAY);
+      setLoad("二値化");
+      cv.threshold(result, result, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+      setLoad("ノイズ除去");
+
+      let kernel = cv.Mat.ones(noise, noise, cv.CV_8U);
+      let anchor = new cv.Point(-1, -1);
+      cv.morphologyEx(result, result, cv.MORPH_OPEN, kernel, anchor, 1,
+        cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+
+      const contours = new cv.MatVector();
+      const hierarchy = new cv.Mat();
+      setLoad("輪郭抽出");
+      cv.findContours(result, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE, {
+        x: 0,
+        y: 0
+      });
+      const addWeightedMat = new cv.Mat();
+      const convertA = new cv.Mat();
+      const convertB = new cv.Mat();
+      cv.cvtColor(imgA, convertA, cv.COLOR_RGBA2RGB);
+      cv.cvtColor(imgB, convertB, cv.COLOR_RGBA2RGB);
+      const baseImageA = convertA.clone();
+      const baseImageB = convertB.clone();
+      let isJudge = false;
+      for (let i = 0; i < contours.size(); i++) {
+        const cnt = contours.get(i);
+        const rect = cv.boundingRect(cnt);
+        if (rect.width > 50 - judgeRange && rect.height > 50 - judgeRange) {
+          isJudge = true;
+          console.log(rect.x + "," + rect.y + "," + rect.width + "," + rect.height);
+          posDataValue.push({
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height
+          });
+
+          baseImg === "imgA" && cv.rectangle(convertA, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(judgeColor[0], judgeColor[1], judgeColor[2]), -1, cv.LINE_8, 0);
+          baseImg === "imgA" && cv.addWeighted(baseImageA, 0.3, convertA, 0.7, 2.2, addWeightedMat);
+
+          baseImg === "imgB" && cv.rectangle(convertB, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), new cv.Scalar(judgeColor[0], judgeColor[1], judgeColor[2]), -1, cv.LINE_8, 0);
+          baseImg === "imgB" && cv.addWeighted(baseImageB, 0.3, convertB, 0.7, 2.2, addWeightedMat);
+        }
+      }
+      setPosData([...posData, posDataValue]);
+      setLoad("完了");
+      cv.imshow('canvasOutput3', result);
+      cv.imshow('canvasOutput4', addWeightedMat);
+      if (isJudge !== true) alert("検知されませんでした")
+    } catch {
+      alert("アップロードされた2枚の画像サイズが違うため、正常に処理できませんでした。\n同じサイズの画像をアップロードしてください。");
     }
-    setLoad("完了");
-    cv.imshow('canvasOutput3', result);
-    cv.imshow('canvasOutput4', addWeightedMat);
-    if (isJudge !== true) alert("検知されませんでした")
+
   }
-  // imgA !== undefined && setStatus("select2");
-  // imgB !== undefined && setStatus("edit");
-  // console.log(imgA !== undefined);
   useEffect(() => {
     imgAFile !== undefined && setStatus("select2");
     imgBFile !== undefined && setStatus("edit");
@@ -185,7 +224,15 @@ function App() {
         link.href = canvas.toDataURL("image/png");
         link.download = "result.png";
         link.click();
-      }} posDownload={() => { }} prevMove={() => { setStatus("edit") }} topMove={() => { window.location.reload() }} />}
+      }} posDownload={() => {
+        console.log(JSON.stringify(posData));
+        const blob = new Blob([JSON.stringify(posData, null, '  ')], { type: 'application\/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'posData.json';
+        link.click();
+      }} prevMove={() => { setStatus("edit") }} topMove={() => { window.location.reload() }} />}
     </div>
   );
 }
@@ -237,15 +284,16 @@ const UploadFile = (props: Upload) => {
             }} >
 
               <Button onClick={open} variant="contained" style={{
-                margin: "auto", padding: "1vw 1.5vw", marginTop: "11vh", backgroundColor: "#5BC0C4", textAlign: "center" as "center", position: 'absolute', left: '50%', top: '4%',
+                margin: "auto", padding: "1.3vw 2vw", marginTop: "13vh", backgroundColor: "#5BC0C4", textAlign: "center" as "center", position: 'absolute', left: '50%', top: '4%',
                 transform: 'translate(-50%, -50%)'
               }}>
-                <div className="japanese_B">ファイルを選択</div></Button>
+                <div className="japanese_B" style={{ fontSize: "1.2vw" }}>ファイルを選択</div></Button>
 
-              <div><p className="japanese_L" style={{ textAlign: "center" as "center", position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+              <div><p className="japanese_L" style={{ textAlign: "center" as "center", position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: "1.2vw" }}>
 
                 <br />
-                <b className='japanese_B' style={{ fontSize: "2vw" }}>or</b>
+                <br />
+                <b className='japanese_B' style={{ fontSize: "3vw" }}>or</b>
                 <br />
                 <br />
                 ファイルをここに
@@ -291,7 +339,7 @@ const EditMenu = (props: EditMenuProps) => {
   const [state, setState] = useState({ background: '#FF0000' });
   const [synthImg, setSynthImg] = useState<"imgA" | "imgB">("imgA");
   const [noiseValue, setNoiseValue] = useState<number>(2);
-  const [judgeValue, setJudgeValue] = useState<number>(35);
+  const [judgeValue, setJudgeValue] = useState<number>(45);
   const [rgb, setRgb] = useState<number[]>([255, 0, 0]);
   const handleChangeComplete = (color: Color) => {
     setState({ background: color.hex });
@@ -351,7 +399,7 @@ const EditMenu = (props: EditMenuProps) => {
         </Grid>
         <Grid item xs={4.5}>
           <div className='japanese_L' style={{}}>判定結果の色</div>
-          <Fab onClick={handleClickOpen} style={{ backgroundColor: state.background, margin: "0 auto", marginLeft: "2.2vw" }}>
+          <Fab onClick={handleClickOpen} style={{ backgroundColor: state.background, margin: "0 auto", marginLeft: "1.2vw" }}>
           </Fab>
         </Grid>
         <Grid item xs={12}>
@@ -359,7 +407,7 @@ const EditMenu = (props: EditMenuProps) => {
           <Box sx={{ width: 300, margin: "0 auto" }}>
             <Slider
               aria-label="noise"
-              defaultValue={47}
+              defaultValue={45}
               getAriaValueText={judgeArea}
               valueLabelDisplay="auto"
               step={1}
