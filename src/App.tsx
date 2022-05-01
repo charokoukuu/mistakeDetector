@@ -1,4 +1,4 @@
-import { Box, Button, Fab } from '@mui/material';
+import { Box, Button, CircularProgress, Fab } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -7,6 +7,7 @@ import { Grid } from '@mui/material';
 import { SketchPicker } from 'react-color';
 import Dialog from '@mui/material/Dialog';
 import Slider from '@mui/material/Slider';
+
 const cv = (window as any).cv;
 type Load = "特徴点マッピング" | "差分抽出" | "二値化" | "ノイズ除去" | "輪郭抽出" | "完了";
 type Status = "select1" | "select2" | "edit" | "loading" | "complete";
@@ -26,10 +27,10 @@ function App() {
   const [imgBFile, setImgBFille] = useState<File>();
   let posDataValue: Array<PosData> = [];
   const [posData, setPosData] = useState<Array<PosData>[]>([]);
-
+  const [isButton, setIsButton] = useState<boolean>(true);
   let noise = 2;
   let judgeColor = [255, 0, 0];
-  let judgeRange = 45;
+  let judgeRange = 50;
   let baseImg: "imgA" | "imgB" = "imgA";
 
   const buttonClick = () => {
@@ -70,7 +71,6 @@ function App() {
           good_matches.push_back(dMatch1);
         }
       }
-      console.log("good_matches : " + good_matches.size());
       var img_matches = new cv.Mat();
       let transformedIm = new cv.Mat();
       cv.drawMatches(templgray, templkp, srcgray, srckp, good_matches, img_matches);
@@ -86,7 +86,7 @@ function App() {
         let srcPointsMatArr = cv.matFromArray(srcPoints.length / 2, 1, cv.CV_32FC2, srcPoints);
         let dstPointsMatArr = cv.matFromArray(dstPoints.length / 2, 1, cv.CV_32FC2, dstPoints);
         const homo = cv.findHomography(srcPointsMatArr, dstPointsMatArr, cv.RANSAC, 5.0);
-        cv.warpPerspective(imgB, transformedIm, homo, new cv.Size(imgB.cols, imgB.rows));
+        cv.warpPerspective(imgB, transformedIm, homo, new cv.Size(imgA.cols, imgA.rows));
       }
       setLoad("差分抽出");
       cv.cvtColor(imgA, grayA, cv.COLOR_BGR2RGB);
@@ -143,11 +143,14 @@ function App() {
       cv.imshow('canvasOutput3', result);
       cv.imshow('canvasOutput4', addWeightedMat);
       if (isJudge !== true) alert("検知されませんでした")
-    } catch {
-      alert("アップロードされた2枚の画像サイズが違うため、正常に処理できませんでした。\n同じサイズの画像をアップロードしてください。");
+    } catch (e) {
+      alert("正常に処理できませんでした。\n再度アップロードしてください。");
+      window.location.reload();
     }
-
   }
+  useEffect(() => {
+    document.title = "MISTAKE DETECTOR";
+  }, []);
   useEffect(() => {
     imgAFile !== undefined && setStatus("select2");
     imgBFile !== undefined && setStatus("edit");
@@ -166,7 +169,7 @@ function App() {
         {(status === "select1") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>2枚の画像をそれぞれアップロードしてください (0/2)</h2></Grid>}
         {(status === "select2") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>2枚の画像をそれぞれアップロードしてください (1/2)</h2></Grid>}
         {(status === "edit") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>詳細設定</h2></Grid>}
-        {(status === "complete") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>判定結果</h2></Grid>}
+        {(status === "complete") && <Grid item xs={12}><h2 className='japanese_L' style={{ textAlign: "center" as "center", color: "#5BC0C4" }}>検出結果</h2></Grid>}
         <Grid item xs={2}></Grid>
         <Grid item xs={4}>
           {<UploadFile setFile={(file) => {
@@ -179,7 +182,7 @@ function App() {
               setImgAFile(file[0])
               img.src = URL.createObjectURL(file[0])
             }
-          }} status={status} id={"canvasOutput"} />
+          }} status={status} id={"canvasOutput"} isImage={!!imgAFile} />
           }
         </Grid>
         <Grid item xs={4}>
@@ -194,7 +197,7 @@ function App() {
               setImgBFille(file[0])
               img.src = URL.createObjectURL(file[0])
             }
-          }} status={status} id={"canvasOutput2"} />
+          }} status={status} id={"canvasOutput2"} isImage={!!imgBFile} />
           }
         </Grid>
         <Grid item xs={2}></Grid>
@@ -211,7 +214,8 @@ function App() {
           }}></canvas>
         </Grid>
       </Grid>
-      {status === "edit" && <EditMenu onClick={(noiseValue: number, rgb: number[], judgeValue: number, synth: "imgA" | "imgB") => {
+      {status === "edit" && <EditMenu isButton={isButton} onClick={(noiseValue: number, rgb: number[], judgeValue: number, synth: "imgA" | "imgB") => {
+        setIsButton(true);
         noise = noiseValue;
         judgeColor = rgb;
         judgeRange = judgeValue;
@@ -225,7 +229,6 @@ function App() {
         link.download = "result.png";
         link.click();
       }} posDownload={() => {
-        console.log(JSON.stringify(posData));
         const blob = new Blob([JSON.stringify(posData, null, '  ')], { type: 'application\/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -241,6 +244,7 @@ interface Upload {
   setFile: (file: File[]) => void;
   status: Status;
   id: string;
+  isImage: boolean;
 }
 const UploadFile = (props: Upload) => {
 
@@ -249,7 +253,8 @@ const UploadFile = (props: Upload) => {
   }, []);
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({ onDrop });
   useEffect(() => {
-  }, [isDragActive]);
+    console.log(props.isImage);
+  }, [props.isImage]);
   return (
     <div>
       <div {...getRootProps()} style={{
@@ -262,7 +267,7 @@ const UploadFile = (props: Upload) => {
       }}>
         <input {...getInputProps()} />
         {
-          isDragActive ?
+          (isDragActive && !props.isImage) ?
             <div style={{
               position: "absolute",
               backgroundColor: "rgba(0,0,0,0.5)",
@@ -273,32 +278,38 @@ const UploadFile = (props: Upload) => {
               borderRadius: "1vw"
 
             }} >
-              <div><p className="japanese_L" style={{ textAlign: "center" as "center" }}>アップロード！</p></div> </div> :
+              <div>
+                <p className="japanese_L" style={{ textAlign: "center" as "center", color: "#ffffff", fontSize: "2vw", marginTop: "3vw" }}>アップロード</p>
+                <img src='upload.svg' style={{ width: "12vw", height: "12vw", margin: "0 auto", textAlign: "center" as "center", left: "50%", top: "50%", position: "absolute", transform: 'translate(-50%, -50%)' }} />
+              </div>
 
+            </div> :
 
-            <div style={{
-              position: "absolute",
-              width: "100%",
-              height: "100%",
+            !props.isImage ?
+              <div style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
 
-            }} >
+              }} >
 
-              <Button onClick={open} variant="contained" style={{
-                margin: "auto", padding: "1.3vw 2vw", marginTop: "13vh", backgroundColor: "#5BC0C4", textAlign: "center" as "center", position: 'absolute', left: '50%', top: '4%',
-                transform: 'translate(-50%, -50%)'
-              }}>
-                <div className="japanese_B" style={{ fontSize: "1.2vw" }}>ファイルを選択</div></Button>
+                <Button onClick={open} variant="contained" style={{
+                  margin: "auto", padding: "1.3vw 2vw", backgroundColor: "#5BC0C4", textAlign: "center" as "center", position: 'absolute', left: '50%', top: '25%',
+                  transform: 'translate(-50%, -50%)'
+                }}>
+                  <div className="japanese_B" style={{ fontSize: "1.2vw" }}>ファイルを選択</div></Button>
 
-              <div><p className="japanese_L" style={{ textAlign: "center" as "center", position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: "1.2vw" }}>
+                <div><p className="japanese_L" style={{ textAlign: "center" as "center", position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: "1.2vw" }}>
 
-                <br />
-                <br />
-                <b className='japanese_B' style={{ fontSize: "3vw" }}>or</b>
-                <br />
-                <br />
-                ファイルをここに
-                <br />
-                <b style={{ color: "#5BC0C4" }}>ドラッグ&ドロップ</b>してください</p></div>
+                  <br />
+                  <br />
+                  <b className='japanese_B' style={{ fontSize: "3vw" }}>or</b>
+                  <br />
+                  <br />
+                  ファイルをここに
+                  <br />
+                  <b style={{ color: "#5BC0C4" }}>ドラッグ&ドロップ</b><br />してください</p></div>
+              </div> :
               <canvas style={{
                 position: "absolute",
                 width: "100%",
@@ -307,7 +318,6 @@ const UploadFile = (props: Upload) => {
                 left: 0,
                 borderRadius: "1vw"
               }} id={props.id} ></canvas>
-            </div>
         }
       </div>
 
@@ -317,6 +327,7 @@ const UploadFile = (props: Upload) => {
 
 interface EditMenuProps {
   onClick: (noiseValue: number, rgb: number[], judgeValue: number, synth: "imgA" | "imgB") => void;
+  isButton: boolean;
 }
 const EditMenu = (props: EditMenuProps) => {
   const [open, setOpen] = React.useState(false);
@@ -339,7 +350,7 @@ const EditMenu = (props: EditMenuProps) => {
   const [state, setState] = useState({ background: '#FF0000' });
   const [synthImg, setSynthImg] = useState<"imgA" | "imgB">("imgA");
   const [noiseValue, setNoiseValue] = useState<number>(2);
-  const [judgeValue, setJudgeValue] = useState<number>(45);
+  const [judgeValue, setJudgeValue] = useState<number>(50);
   const [rgb, setRgb] = useState<number[]>([255, 0, 0]);
   const handleChangeComplete = (color: Color) => {
     setState({ background: color.hex });
@@ -371,10 +382,6 @@ const EditMenu = (props: EditMenuProps) => {
     height: "11vh",
     borderRadius: "10px",
     margin: "0 auto",
-
-
-
-
   }
   return (
     <div style={{
@@ -398,16 +405,16 @@ const EditMenu = (props: EditMenuProps) => {
           </Box>
         </Grid>
         <Grid item xs={4.5}>
-          <div className='japanese_L' style={{}}>判定結果の色</div>
+          <div className='japanese_L' style={{}}>検出結果の色</div>
           <Fab onClick={handleClickOpen} style={{ backgroundColor: state.background, margin: "0 auto", marginLeft: "1.2vw" }}>
           </Fab>
         </Grid>
         <Grid item xs={12}>
-          <div className='japanese_L' style={{ textAlign: "center" as "center" }}>検知範囲</div>
+          <div className='japanese_L' style={{ textAlign: "center" as "center" }}>検出範囲</div>
           <Box sx={{ width: 300, margin: "0 auto" }}>
             <Slider
               aria-label="noise"
-              defaultValue={45}
+              defaultValue={50}
               getAriaValueText={judgeArea}
               valueLabelDisplay="auto"
               step={1}
@@ -456,12 +463,15 @@ const EditMenu = (props: EditMenuProps) => {
 
         />
       </Dialog>
-      <Button fullWidth style={{
-        padding: "1vw 13vw",
-        fontSize: "1.8vw",
-        marginTop: "3vw",
-        backgroundColor: "#3BABE6",
-      }} onClick={() => { props.onClick(noiseValue, rgb, judgeValue, synthImg) }} variant="contained"><b>判定する</b></Button>
+      {
+        props.isButton ? <Button fullWidth style={{
+          padding: "1vw 13vw",
+          fontSize: "1.8vw",
+          marginTop: "3vw",
+          backgroundColor: "#3BABE6",
+        }} onClick={() => { props.onClick(noiseValue, rgb, judgeValue, synthImg) }} variant="contained"><b>検出する</b></Button> :
+          <CircularProgress />
+      }
     </div >
   )
 }
