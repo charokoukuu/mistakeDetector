@@ -338,12 +338,12 @@ const EditMenu = (props: EditMenuProps) => {
           <Box sx={{ width: 300, margin: "0 auto" }}>
             <Slider
               aria-label="noise"
-              defaultValue={2}
+              defaultValue={1}
               getAriaValueText={noise}
               valueLabelDisplay="auto"
               step={1}
               marks
-              min={0}
+              min={1}
               max={5}
               onChange={(event: Event, value: number | number[]) => { setNoiseValue(value as number) }}
             />
@@ -359,7 +359,7 @@ const EditMenu = (props: EditMenuProps) => {
           <Box sx={{ width: 300, margin: "0 auto" }}>
             <Slider
               aria-label="noise"
-              defaultValue={35}
+              defaultValue={47}
               getAriaValueText={judgeArea}
               valueLabelDisplay="auto"
               step={1}
