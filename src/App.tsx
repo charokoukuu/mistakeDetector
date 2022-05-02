@@ -40,39 +40,39 @@ function App() {
       const grayA = new cv.Mat();
       const grayB = new cv.Mat();
 
-      let srcgray = new cv.Mat();
-      let templgray = new cv.Mat();
+      const srcgray = new cv.Mat();
+      const templgray = new cv.Mat();
       cv.cvtColor(imgA, srcgray, cv.COLOR_RGBA2GRAY);
       cv.cvtColor(imgB, templgray, cv.COLOR_RGBA2GRAY);
-      var akaze = new cv.AKAZE();
+      const akaze = new cv.AKAZE();
 
-      var templkp = new cv.KeyPointVector();
-      var templdas = new cv.Mat();
-      let templmask = new cv.Mat();
+      const templkp = new cv.KeyPointVector();
+      const templdas = new cv.Mat();
+      const templmask = new cv.Mat();
       akaze.detectAndCompute(templgray, templmask, templkp, templdas);
-      let templview = new cv.Mat();
+      const templview = new cv.Mat();
       cv.drawKeypoints(templgray, templkp, templview);
-      var srckp = new cv.KeyPointVector();
-      var srcdas = new cv.Mat();
-      let srcmask = new cv.Mat();
+      const srckp = new cv.KeyPointVector();
+      const srcdas = new cv.Mat();
+      const srcmask = new cv.Mat();
       akaze.detectAndCompute(srcgray, srcmask, srckp, srcdas);
-      let srcview = new cv.Mat();
+      const srcview = new cv.Mat();
       cv.drawKeypoints(srcgray, srckp, srcview);
-      var bf = new cv.BFMatcher();
-      var matches = new cv.DMatchVectorVector();
+      const bf = new cv.BFMatcher();
+      const matches = new cv.DMatchVectorVector();
       bf.knnMatch(templdas, srcdas, matches, 2);
-      var arr = [];
-      var good_matches = new cv.DMatchVector();
+      let arr = [];
+      const good_matches = new cv.DMatchVector();
       for (let i = 0; i < matches.size(); ++i) {
-        let match = matches.get(i);
-        let dMatch1 = match.get(0);
-        let dMatch2 = match.get(1);
+        const match = matches.get(i);
+        const dMatch1 = match.get(0);
+        const dMatch2 = match.get(1);
         if (dMatch1.distance <= dMatch2.distance * 0.8) {
           good_matches.push_back(dMatch1);
         }
       }
-      var img_matches = new cv.Mat();
-      let transformedIm = new cv.Mat();
+      const img_matches = new cv.Mat();
+      const transformedIm = new cv.Mat();
       cv.drawMatches(templgray, templkp, srcgray, srckp, good_matches, img_matches);
       if (good_matches.size() > 10) {
         let srcPoints = [];
@@ -83,8 +83,8 @@ function App() {
           dstPoints.push(srckp.get(good_matches.get(k).trainIdx).pt.x);
           dstPoints.push(srckp.get(good_matches.get(k).trainIdx).pt.y);
         }
-        let srcPointsMatArr = cv.matFromArray(srcPoints.length / 2, 1, cv.CV_32FC2, srcPoints);
-        let dstPointsMatArr = cv.matFromArray(dstPoints.length / 2, 1, cv.CV_32FC2, dstPoints);
+        const srcPointsMatArr = cv.matFromArray(srcPoints.length / 2, 1, cv.CV_32FC2, srcPoints);
+        const dstPointsMatArr = cv.matFromArray(dstPoints.length / 2, 1, cv.CV_32FC2, dstPoints);
         const homo = cv.findHomography(srcPointsMatArr, dstPointsMatArr, cv.RANSAC, 5.0);
         cv.warpPerspective(imgB, transformedIm, homo, new cv.Size(imgA.cols, imgA.rows));
       }
@@ -98,8 +98,8 @@ function App() {
       cv.threshold(result, result, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
       setLoad("ノイズ除去");
 
-      let kernel = cv.Mat.ones(noise, noise, cv.CV_8U);
-      let anchor = new cv.Point(-1, -1);
+      const kernel = cv.Mat.ones(noise, noise, cv.CV_8U);
+      const anchor = new cv.Point(-1, -1);
       cv.morphologyEx(result, result, cv.MORPH_OPEN, kernel, anchor, 1,
         cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
 
@@ -114,7 +114,7 @@ function App() {
       const convertA = new cv.Mat();
       const convertB = new cv.Mat();
       cv.cvtColor(imgA, convertA, cv.COLOR_RGBA2RGB);
-      cv.cvtColor(imgB, convertB, cv.COLOR_RGBA2RGB);
+      cv.cvtColor(transformedIm, convertB, cv.COLOR_RGBA2RGB);
       const baseImageA = convertA.clone();
       const baseImageB = convertB.clone();
       let isJudge = false;
@@ -223,8 +223,8 @@ function App() {
         buttonClick();
       }} />}
       {status === "complete" && <Complete imgDownload={() => {
-        let canvas = document.getElementById("canvasOutput4") as HTMLCanvasElement;
-        let link = document.createElement("a");
+        const canvas = document.getElementById("canvasOutput4") as HTMLCanvasElement;
+        const link = document.createElement("a");
         link.href = canvas.toDataURL("image/png");
         link.download = "result.png";
         link.click();
